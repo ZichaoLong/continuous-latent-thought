@@ -78,7 +78,7 @@ def main() -> None:
         optimizer.step()
         losses.append(float(loss.detach().cpu()))
         if step == 1 or step % max(1, args.steps // 4) == 0:
-            print({"step": step, "loss": round(losses[-1], 4)})
+            print({"step": step, "loss": round(losses[-1], 4)}, flush=True)
 
     metrics = {
         "task": args.task,
@@ -120,7 +120,7 @@ def main() -> None:
             args.eval_mode,
         ),
     }
-    print(json.dumps(metrics, ensure_ascii=False, indent=2))
+    print(json.dumps(metrics, ensure_ascii=False, indent=2), flush=True)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -56,9 +56,9 @@ PYTHONPATH=src python3 -m clt.train_tiny \
   --steps 300 \
   --eval-examples 200 \
   --eval-mode binary_choice \
-  --d-model 64 \
-  --n-layers 2 \
-  --n-heads 4
+  --d-model 32 \
+  --n-layers 1 \
+  --n-heads 2
 ```
 
 ## Run Direct Learning Curve
@@ -96,6 +96,14 @@ Default curve points:
 
 ```text
 100, 300, 1000 steps
+```
+
+Default tiny model:
+
+```text
+d_model=32
+n_layers=1
+n_heads=2
 ```
 
 Override with:

@@ -8,9 +8,9 @@ OUTPUT_DIR="${OUTPUT_DIR:-outputs/phase1b_direct_curve}"
 DEVICE="${DEVICE:-cpu}"
 STEPS_LIST="${STEPS_LIST:-100 300 1000}"
 EVAL_EXAMPLES="${EVAL_EXAMPLES:-200}"
-D_MODEL="${D_MODEL:-64}"
-N_LAYERS="${N_LAYERS:-2}"
-N_HEADS="${N_HEADS:-4}"
+D_MODEL="${D_MODEL:-32}"
+N_LAYERS="${N_LAYERS:-1}"
+N_HEADS="${N_HEADS:-2}"
 LR="${LR:-0.0003}"
 
 mkdir -p "${OUTPUT_DIR}"
@@ -23,7 +23,7 @@ PYTHONPATH=src python3 -m clt.build_dataset \
 
 for steps in ${STEPS_LIST}; do
   echo "Running direct curve point: steps=${steps}"
-  PYTHONPATH=src python3 -m clt.train_tiny \
+  PYTHONUNBUFFERED=1 PYTHONPATH=src python3 -m clt.train_tiny \
     --task "${TASK}" \
     --method direct \
     --difficulty "${DIFFICULTY}" \
