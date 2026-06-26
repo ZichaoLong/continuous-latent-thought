@@ -54,6 +54,20 @@ scripts/with_ascend_env.sh
 
 which points to `/usr/local/Ascend/ascend-toolkit/8.2.RC1`.
 
+For project runs that should also pin the conda Python, use:
+
+```bash
+scripts/with_conda_npu.sh
+```
+
+This wrapper sets:
+
+```text
+PYTHON=/home/zlong/anaconda3/envs/clt-npu-py39/bin/python
+PYTHONNOUSERSITE=1
+ASCEND_RT_VISIBLE_DEVICES=5
+```
+
 Do not use the mixed workaround `cann-8.5.1 + 8.2 libhccl.so` for training. It can import `torch_npu`, but fails during NPU computation with TBE/TVM configuration incompatibilities.
 
 ## Verified Commands
