@@ -19,7 +19,9 @@ def main() -> None:
     parser.add_argument("--method", choices=["direct", "cot", "masked_cot", "soft", "latent"], default="direct")
     parser.add_argument("--data-dir", type=Path, default=Path("data/phase1a_smoke"))
     parser.add_argument("--build-data", action="store_true")
+    parser.add_argument("--difficulty", choices=["standard", "easy"], default="standard")
     parser.add_argument("--device", default="cpu", help="cpu or npu:0")
+    parser.add_argument("--eval-mode", choices=["generate", "binary_choice"], default="generate")
     parser.add_argument("--steps", type=int, default=80)
     parser.add_argument("--eval-examples", type=int, default=32)
     parser.add_argument("--k", type=int, default=4)
@@ -46,7 +48,7 @@ def main() -> None:
     torch.manual_seed(args.seed)
 
     if args.build_data or not dataset_path(args.data_dir, "train", args.task).exists():
-        build_dataset(args.data_dir, [args.task], smoke_split_sizes())
+        build_dataset(args.data_dir, [args.task], smoke_split_sizes(), difficulty=args.difficulty)
 
     train_examples = read_jsonl(dataset_path(args.data_dir, "train", args.task))
     dev_examples = read_jsonl(dataset_path(args.data_dir, "dev", args.task))
@@ -81,16 +83,41 @@ def main() -> None:
     metrics = {
         "task": args.task,
         "method": args.method,
+        "difficulty": args.difficulty,
+        "eval_mode": args.eval_mode,
         "steps": args.steps,
         "k": args.k if args.method in {"soft", "latent"} else None,
         "train_loss_last": losses[-1],
         "elapsed_sec": round(time.time() - start_time, 3),
-        "dev": evaluate(model, tokenizer, dev_examples[: args.eval_examples], args.method, args.k, args.device, args.max_new_tokens),
+        "dev": evaluate(
+            model,
+            tokenizer,
+            dev_examples[: args.eval_examples],
+            args.method,
+            args.k,
+            args.device,
+            args.max_new_tokens,
+            args.eval_mode,
+        ),
         "id_test": evaluate(
-            model, tokenizer, id_examples[: args.eval_examples], args.method, args.k, args.device, args.max_new_tokens
+            model,
+            tokenizer,
+            id_examples[: args.eval_examples],
+            args.method,
+            args.k,
+            args.device,
+            args.max_new_tokens,
+            args.eval_mode,
         ),
         "ood_test": evaluate(
-            model, tokenizer, ood_examples[: args.eval_examples], args.method, args.k, args.device, args.max_new_tokens
+            model,
+            tokenizer,
+            ood_examples[: args.eval_examples],
+            args.method,
+            args.k,
+            args.device,
+            args.max_new_tokens,
+            args.eval_mode,
         ),
     }
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
@@ -127,10 +154,24 @@ def _loss_for_example(model, tokenizer: CharTokenizer, example: Example, method:
     return model.continuous_loss(prefix_ids, answer_ids, num_steps=k, mode=method)
 
 
-def evaluate(model, tokenizer: CharTokenizer, examples: list[Example], method: Method, k: int, device: str, max_new_tokens: int) -> dict:
+def evaluate(
+    model,
+    tokenizer: CharTokenizer,
+    examples: list[Example],
+    method: Method,
+    k: int,
+    device: str,
+    max_new_tokens: int,
+    eval_mode: str,
+) -> dict:
     import torch
 
     model.eval()
+    if eval_mode == "binary_choice" and method in {"direct", "soft", "latent"} and _is_binary_answer_set(examples):
+        result = evaluate_binary_choice(model, tokenizer, examples, method, k, device)
+        model.train()
+        return result
+
     correct = 0
     predictions = []
     with torch.no_grad():
@@ -157,6 +198,57 @@ def evaluate(model, tokenizer: CharTokenizer, examples: list[Example], method: M
                 predictions.append({"expected": example.answer, "generated": generated[:120], "parsed": answer, "ok": ok})
     model.train()
     return {"accuracy": correct / max(1, len(examples)), "num_examples": len(examples), "samples": predictions}
+
+
+def evaluate_binary_choice(
+    model,
+    tokenizer: CharTokenizer,
+    examples: list[Example],
+    method: Method,
+    k: int,
+    device: str,
+) -> dict:
+    import torch
+
+    choices = ["YES", "NO"]
+    candidate_ids = {
+        choice: torch.tensor(tokenizer.encode(f"{choice}\n"), device=device, dtype=torch.long) for choice in choices
+    }
+    correct = 0
+    predictions = []
+
+    with torch.no_grad():
+        for example in examples:
+            if method == "direct":
+                prefix = f"Problem:\n{example.prompt}\nAnswer: "
+                prefix_ids = torch.tensor(tokenizer.encode(prefix), device=device, dtype=torch.long)
+                scores = {
+                    choice: float(model.candidate_nll(prefix_ids, ids).detach().cpu())
+                    for choice, ids in candidate_ids.items()
+                }
+            elif method in {"soft", "latent"}:
+                item = continuous_item(example)
+                prefix_ids = torch.tensor(tokenizer.encode(item.prefix), device=device, dtype=torch.long)
+                scores = {
+                    choice: float(
+                        model.continuous_candidate_nll(prefix_ids, ids, num_steps=k, mode=method).detach().cpu()
+                    )
+                    for choice, ids in candidate_ids.items()
+                }
+            else:
+                raise ValueError(f"binary_choice eval is not supported for method={method}")
+
+            answer = min(scores, key=scores.get)
+            ok = verify_answer(example, answer)
+            correct += int(ok)
+            if len(predictions) < 5:
+                predictions.append({"expected": example.answer, "parsed": answer, "scores": scores, "ok": ok})
+
+    return {"accuracy": correct / max(1, len(examples)), "num_examples": len(examples), "samples": predictions}
+
+
+def _is_binary_answer_set(examples: list[Example]) -> bool:
+    return all(example.answer in {"YES", "NO"} for example in examples)
 
 
 def extract_answer(text: str) -> str:

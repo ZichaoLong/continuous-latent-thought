@@ -63,19 +63,26 @@ def dataset_path(root: Path, split: str, task: str) -> Path:
     return root / split / f"{task}.jsonl"
 
 
-def build_split(root: Path, task: str, split: str, num_examples: int, seed_start: int | None = None) -> Path:
+def build_split(
+    root: Path,
+    task: str,
+    split: str,
+    num_examples: int,
+    seed_start: int | None = None,
+    difficulty: str = "standard",
+) -> Path:
     start = SPLIT_SEED_START[split] if seed_start is None else seed_start
-    examples = [generate_example(task, start + i, split) for i in range(num_examples)]
+    examples = [generate_example(task, start + i, split, difficulty=difficulty) for i in range(num_examples)]
     path = dataset_path(root, split, task)
     write_jsonl(examples, path)
     return path
 
 
-def build_dataset(root: Path, tasks: Iterable[str], sizes: SplitSizes) -> list[Path]:
+def build_dataset(root: Path, tasks: Iterable[str], sizes: SplitSizes, difficulty: str = "standard") -> list[Path]:
     paths = []
     for task in tasks:
         for split, count in sizes.as_dict().items():
-            paths.append(build_split(root, task, split, count))
+            paths.append(build_split(root, task, split, count, difficulty=difficulty))
     return paths
 
 
@@ -83,12 +90,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Materialize CLT synthetic train/dev/test splits.")
     parser.add_argument("--task", choices=[*list_tasks(), "all"], default="graph_reachability")
     parser.add_argument("--preset", choices=["smoke", "debug"], default="smoke")
+    parser.add_argument("--difficulty", choices=["standard", "easy"], default="standard")
     parser.add_argument("--out-dir", type=Path, default=Path("data/phase1a"))
     args = parser.parse_args()
 
     tasks = list_tasks() if args.task == "all" else [args.task]
     sizes = smoke_split_sizes() if args.preset == "smoke" else debug_split_sizes()
-    for path in build_dataset(args.out_dir, tasks, sizes):
+    for path in build_dataset(args.out_dir, tasks, sizes, difficulty=args.difficulty):
         print(path)
 
 

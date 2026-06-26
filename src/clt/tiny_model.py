@@ -99,6 +99,55 @@ class TinyDecoder(nn.Module):
         supervised_logits = logits[:, start:end, :].squeeze(0)
         return F.cross_entropy(supervised_logits, answer_ids)
 
+    def candidate_nll(self, prefix_ids: torch.Tensor, candidate_ids: torch.Tensor) -> torch.Tensor:
+        if candidate_ids.numel() == 0:
+            raise ValueError("candidate_ids must not be empty")
+        input_ids = torch.cat([prefix_ids, candidate_ids[:-1]], dim=0).unsqueeze(0)
+        hidden = self.forward_ids(input_ids)
+        logits = self.logits_from_hidden(hidden).squeeze(0)
+        start = prefix_ids.numel() - 1
+        end = start + candidate_ids.numel()
+        candidate_logits = logits[start:end, :]
+        token_losses = F.cross_entropy(candidate_logits, candidate_ids, reduction="none")
+        return token_losses.mean()
+
+    def continuous_candidate_nll(
+        self,
+        prefix_ids: torch.Tensor,
+        candidate_ids: torch.Tensor,
+        num_steps: int,
+        mode: str,
+        soft_temperature: float = 1.0,
+    ) -> torch.Tensor:
+        if candidate_ids.numel() == 0:
+            raise ValueError("candidate_ids must not be empty")
+
+        seq_embeds = self.token_embedding(prefix_ids.unsqueeze(0))
+        for _ in range(num_steps):
+            hidden = self.forward_embeds(seq_embeds)
+            last_hidden = hidden[:, -1, :]
+            if mode == "latent":
+                next_embed = self.latent_proj(self.latent_norm(last_hidden))
+            elif mode == "soft":
+                logits = self.logits_from_hidden(last_hidden)
+                probs = torch.softmax(logits / soft_temperature, dim=-1)
+                next_embed = probs @ self.token_embedding.weight
+            else:
+                raise ValueError(f"Unknown continuous mode: {mode}")
+            seq_embeds = torch.cat([seq_embeds, next_embed.unsqueeze(1)], dim=1)
+
+        candidate_input_ids = candidate_ids[:-1]
+        if candidate_input_ids.numel() > 0:
+            candidate_embeds = self.token_embedding(candidate_input_ids.unsqueeze(0))
+            seq_embeds = torch.cat([seq_embeds, candidate_embeds], dim=1)
+
+        hidden = self.forward_embeds(seq_embeds)
+        logits = self.logits_from_hidden(hidden).squeeze(0)
+        start = prefix_ids.numel() + num_steps - 1
+        end = start + candidate_ids.numel()
+        token_losses = F.cross_entropy(logits[start:end, :], candidate_ids, reduction="none")
+        return token_losses.mean()
+
     @torch.no_grad()
     def generate_text(self, input_ids: torch.Tensor, max_new_tokens: int) -> list[int]:
         ids = input_ids.clone()

@@ -32,6 +32,17 @@ def test_ood_examples_are_larger_or_deeper():
     assert expr_ood.metadata["max_depth"] > expr_train.metadata["max_depth"]
 
 
+def test_easy_graph_reachability_is_small_and_binary():
+    example = generate_example("graph_reachability", seed=7, split="train", difficulty="easy")
+    assert example.metadata["difficulty"] == "easy"
+    assert example.metadata["num_nodes"] == 4
+    assert example.answer in {"YES", "NO"}
+
+    ood = generate_example("graph_reachability", seed=7, split="ood_test", difficulty="easy")
+    assert ood.metadata["num_nodes"] == 6
+    assert ood.answer in {"YES", "NO"}
+
+
 def test_arithmetic_answer_parser_accepts_simple_expressions():
     assert parse_arithmetic_answer("Answer: (3+5)-2") == 6
     assert parse_arithmetic_answer("not arithmetic") is None

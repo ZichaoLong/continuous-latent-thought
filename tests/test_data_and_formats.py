@@ -11,6 +11,13 @@ def test_build_split_writes_jsonl(tmp_path):
     assert examples[0].metadata["seed"] == 10
 
 
+def test_build_split_accepts_easy_difficulty(tmp_path):
+    path = build_split(tmp_path, "graph_reachability", "train", 3, seed_start=10, difficulty="easy")
+    examples = read_jsonl(path)
+    assert len(examples) == 3
+    assert all(example.metadata["difficulty"] == "easy" for example in examples)
+
+
 def test_training_formats_have_expected_loss_boundaries():
     example = generate_example("graph_reachability", seed=0, split="train")
 

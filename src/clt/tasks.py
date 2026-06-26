@@ -34,10 +34,12 @@ def list_tasks() -> list[str]:
     ]
 
 
-def generate_example(task: TaskName, seed: int, split: str = "train") -> Example:
+def generate_example(task: TaskName, seed: int, split: str = "train", difficulty: str = "standard") -> Example:
     rng = random.Random(seed)
     ood = split == "ood_test"
     if task == "graph_reachability":
+        if difficulty == "easy":
+            return _generate_easy_graph_reachability(rng, seed, split, ood)
         return _generate_graph_reachability(rng, seed, split, ood)
     if task == "shortest_path":
         return _generate_shortest_path(rng, seed, split, ood)
@@ -46,6 +48,14 @@ def generate_example(task: TaskName, seed: int, split: str = "train") -> Example
     if task == "symbolic_arithmetic":
         return _generate_symbolic_arithmetic(rng, seed, split, ood)
     raise ValueError(f"Unknown task: {task}")
+
+
+def _validate_difficulty(task: TaskName, difficulty: str) -> None:
+    if difficulty == "standard":
+        return
+    if task == "graph_reachability" and difficulty == "easy":
+        return
+    raise ValueError(f"Unsupported difficulty={difficulty!r} for task={task!r}")
 
 
 def verify_answer(example: Example, candidate: str) -> bool:
@@ -180,6 +190,63 @@ def _generate_graph_reachability(rng: random.Random, seed: int, split: str, ood:
         answer=answer,
         metadata={
             "task": "graph_reachability",
+            "difficulty": "standard",
+            "split": split,
+            "seed": seed,
+            "num_nodes": n,
+            "num_edges": len(edges),
+            "reachable": answer == "YES",
+            "path_length": None if solved_path is None else len(solved_path) - 1,
+        },
+    )
+
+
+def _generate_easy_graph_reachability(rng: random.Random, seed: int, split: str, ood: bool) -> Example:
+    n = 6 if ood else 4
+    source, target = 0, n - 1
+    reachable = rng.random() < 0.5
+    edges: set[tuple[int, int]] = set()
+
+    if reachable:
+        if rng.random() < 0.5 or n == 4:
+            edges.add((source, target))
+        else:
+            middle = rng.randrange(1, n - 1)
+            edges.add((source, middle))
+            edges.add((middle, target))
+    else:
+        # Keep source disconnected from target so the label is learnable for a small model.
+        for node in range(1, n - 1):
+            if rng.random() < 0.6:
+                edges.add((node, target))
+        if rng.random() < 0.5:
+            edges.add((1, 2 if n > 4 else target))
+        edges = {edge for edge in edges if edge[0] != source}
+
+    # Add a small number of distractor edges that do not change reachability.
+    for _ in range(2 if ood else 1):
+        a = rng.randrange(1, n)
+        b = rng.randrange(1, n)
+        if a != b:
+            edges.add((a, b))
+
+    solved_path, visit_order = _bfs_path(n, edges, source, target)
+    answer = "YES" if solved_path else "NO"
+    trace = _graph_trace(source, target, solved_path, visit_order)
+    prompt = (
+        "You are given a directed graph.\n"
+        f"Nodes: {_format_nodes(n)}\n"
+        f"Edges: {_format_edges(edges)}\n"
+        f"Question: Is there a path from {_node_name(source)} to {_node_name(target)}?\n"
+        "Return YES or NO."
+    )
+    return Example(
+        prompt=prompt,
+        trace=trace,
+        answer=answer,
+        metadata={
+            "task": "graph_reachability",
+            "difficulty": "easy",
             "split": split,
             "seed": seed,
             "num_nodes": n,
@@ -472,6 +539,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate CLT synthetic task data as JSONL.")
     parser.add_argument("--task", choices=[*list_tasks(), "all"], default="all")
     parser.add_argument("--split", choices=["train", "dev", "id_test", "ood_test"], default="train")
+    parser.add_argument("--difficulty", choices=["standard", "easy"], default="standard")
     parser.add_argument("--num-examples", type=int, default=100)
     parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--out-dir", type=Path, default=Path("data/debug"))
@@ -479,7 +547,11 @@ def main() -> None:
 
     tasks = list_tasks() if args.task == "all" else [args.task]
     for task in tasks:
-        examples = [generate_example(task, args.seed_start + i, args.split) for i in range(args.num_examples)]
+        _validate_difficulty(task, args.difficulty)
+        examples = [
+            generate_example(task, args.seed_start + i, args.split, difficulty=args.difficulty)
+            for i in range(args.num_examples)
+        ]
         for example in examples:
             if not verify_answer(example, example.answer):
                 raise RuntimeError(f"Self verification failed for {task} seed={example.metadata['seed']}")
