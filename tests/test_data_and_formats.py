@@ -1,6 +1,6 @@
 from clt.data import build_split, read_jsonl
 from clt.formats import continuous_item, format_text
-from clt.tasks import generate_example
+from clt.tasks import generate_easy_graph_reachability_fixed_nodes, generate_example
 from clt.tokenizer import CharTokenizer
 
 
@@ -16,6 +16,13 @@ def test_build_split_accepts_easy_difficulty(tmp_path):
     examples = read_jsonl(path)
     assert len(examples) == 3
     assert all(example.metadata["difficulty"] == "easy" for example in examples)
+
+
+def test_fixed_node_easy_graph_diagnostic_examples():
+    example = generate_easy_graph_reachability_fixed_nodes(seed=123, n=7)
+    assert example.metadata["num_nodes"] == 7
+    assert example.metadata["difficulty"] == "easy"
+    assert example.answer in {"YES", "NO"}
 
 
 def test_training_formats_have_expected_loss_boundaries():

@@ -203,6 +203,19 @@ def _generate_graph_reachability(rng: random.Random, seed: int, split: str, ood:
 
 def _generate_easy_graph_reachability(rng: random.Random, seed: int, split: str, ood: bool) -> Example:
     n = 6 if ood else 4
+    return _generate_easy_graph_reachability_fixed_n(rng, seed, split, n, distractor_edges=2 if ood else 1)
+
+
+def generate_easy_graph_reachability_fixed_nodes(seed: int, n: int, split: str = "diagnostic") -> Example:
+    if n < 4:
+        raise ValueError("easy graph reachability diagnostics require n >= 4")
+    rng = random.Random(seed)
+    return _generate_easy_graph_reachability_fixed_n(rng, seed, split, n, distractor_edges=2)
+
+
+def _generate_easy_graph_reachability_fixed_n(
+    rng: random.Random, seed: int, split: str, n: int, distractor_edges: int
+) -> Example:
     source, target = 0, n - 1
     reachable = rng.random() < 0.5
     edges: set[tuple[int, int]] = set()
@@ -224,7 +237,7 @@ def _generate_easy_graph_reachability(rng: random.Random, seed: int, split: str,
         edges = {edge for edge in edges if edge[0] != source}
 
     # Add a small number of distractor edges that do not change reachability.
-    for _ in range(2 if ood else 1):
+    for _ in range(distractor_edges):
         a = rng.randrange(1, n)
         b = rng.randrange(1, n)
         if a != b:

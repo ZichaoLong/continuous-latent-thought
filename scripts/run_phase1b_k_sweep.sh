@@ -3,19 +3,20 @@ set -euo pipefail
 
 TASK="${TASK:-graph_reachability}"
 DIFFICULTY="${DIFFICULTY:-easy}"
-DATA_DIR="${DATA_DIR:-data/phase1b_easy_matrix}"
-OUTPUT_DIR="${OUTPUT_DIR:-outputs/phase1b_method_matrix}"
+DATA_DIR="${DATA_DIR:-data/phase1b_k_sweep}"
+OUTPUT_DIR="${OUTPUT_DIR:-outputs/phase1b_k_sweep}"
 DEVICE="${DEVICE:-cpu}"
-METHODS="${METHODS:-direct cot masked_cot soft latent}"
-STEPS_LIST="${STEPS_LIST:-100 300 1000}"
-EVAL_EXAMPLES="${EVAL_EXAMPLES:-100}"
-K="${K:-8}"
+METHODS="${METHODS:-soft latent}"
+K_LIST="${K_LIST:-0 2 4 8 16}"
+SEED="${SEED:-0}"
+STEPS="${STEPS:-1000}"
+EVAL_EXAMPLES="${EVAL_EXAMPLES:-50}"
 D_MODEL="${D_MODEL:-32}"
 N_LAYERS="${N_LAYERS:-1}"
 N_HEADS="${N_HEADS:-2}"
 LR="${LR:-0.0003}"
+MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-8}"
 PYTHON="${PYTHON:-python3}"
-MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-96}"
 
 mkdir -p "${OUTPUT_DIR}"
 
@@ -25,34 +26,27 @@ PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.build_dataset \
   --difficulty "${DIFFICULTY}" \
   --out-dir "${DATA_DIR}"
 
-eval_mode_for_method() {
-  case "$1" in
-    direct|cot|masked_cot|soft|latent) echo "binary_choice" ;;
-    *) echo "Unknown method: $1" >&2; exit 2 ;;
-  esac
-}
-
 for method in ${METHODS}; do
-  eval_mode="$(eval_mode_for_method "${method}")"
-  for steps in ${STEPS_LIST}; do
-    echo "Running matrix point: method=${method} steps=${steps} eval_mode=${eval_mode}"
+  for k in ${K_LIST}; do
+    echo "Running K sweep point: method=${method} k=${k} steps=${STEPS}"
     PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.train_tiny \
       --task "${TASK}" \
       --method "${method}" \
       --difficulty "${DIFFICULTY}" \
       --data-dir "${DATA_DIR}" \
       --device "${DEVICE}" \
-      --steps "${steps}" \
+      --steps "${STEPS}" \
       --eval-examples "${EVAL_EXAMPLES}" \
-      --eval-mode "${eval_mode}" \
+      --eval-mode binary_choice \
       --lr "${LR}" \
-      --k "${K}" \
+      --k "${k}" \
+      --seed "${SEED}" \
       --d-model "${D_MODEL}" \
       --n-layers "${N_LAYERS}" \
       --n-heads "${N_HEADS}" \
       --max-new-tokens "${MAX_NEW_TOKENS}" \
-      --output "${OUTPUT_DIR}/${method}_${steps}.json" \
-      2>&1 | tee "${OUTPUT_DIR}/${method}_${steps}.log"
+      --output "${OUTPUT_DIR}/${method}_k${k}.json" \
+      2>&1 | tee "${OUTPUT_DIR}/${method}_k${k}.log"
   done
 done
 
@@ -64,19 +58,15 @@ from pathlib import Path
 
 root = Path(os.environ["OUTPUT_DIR"])
 method_order = {method: i for i, method in enumerate(os.environ["METHODS"].split())}
-
 rows = []
-for path in root.glob("*.json"):
-    if path.name in {"summary.json"}:
-        continue
-    method, steps_text = path.stem.rsplit("_", 1)
+for path in root.glob("*_k*.json"):
+    method, k_text = path.stem.rsplit("_k", 1)
     payload = json.loads(path.read_text())
     rows.append(
         {
             "method": method,
-            "steps": int(steps_text),
-            "eval_mode": payload["eval_mode"],
-            "k": "" if payload["k"] is None else payload["k"],
+            "k": int(k_text),
+            "steps": payload["steps"],
             "dev": payload["dev"]["accuracy"],
             "id_test": payload["id_test"]["accuracy"],
             "ood_test": payload["ood_test"]["accuracy"],
@@ -84,18 +74,14 @@ for path in root.glob("*.json"):
             "elapsed_sec": payload["elapsed_sec"],
         }
     )
+rows.sort(key=lambda row: (method_order.get(row["method"], 999), row["k"]))
 
-rows.sort(key=lambda row: (method_order.get(row["method"], 999), row["steps"]))
-
-print("\nPhase 1b method matrix")
-print("method\tsteps\teval\tk\tdev\tid_test\tood_test\tloss\tsec")
+print("\nPhase 1b K sweep")
+print("method\tk\tid_test\tood_test\tloss\tsec")
 for row in rows:
     print(
         f"{row['method']}\t"
-        f"{row['steps']}\t"
-        f"{row['eval_mode']}\t"
         f"{row['k']}\t"
-        f"{row['dev']:.3f}\t"
         f"{row['id_test']:.3f}\t"
         f"{row['ood_test']:.3f}\t"
         f"{row['loss']:.3f}\t"

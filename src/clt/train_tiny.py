@@ -9,7 +9,7 @@ import time
 
 from .data import build_dataset, dataset_path, read_jsonl, smoke_split_sizes
 from .formats import Method, continuous_item, format_text
-from .tasks import Example, verify_answer
+from .tasks import Example, generate_easy_graph_reachability_fixed_nodes, verify_answer
 from .tokenizer import CharTokenizer
 
 
@@ -31,6 +31,12 @@ def main() -> None:
     parser.add_argument("--n-layers", type=int, default=2)
     parser.add_argument("--n-heads", type=int, default=4)
     parser.add_argument("--max-new-tokens", type=int, default=64)
+    parser.add_argument(
+        "--easy-graph-diagnostic-nodes",
+        default="",
+        help="Comma-separated fixed node counts for graph_reachability/easy diagnostic evaluation.",
+    )
+    parser.add_argument("--diagnostic-examples", type=int, default=0)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -120,6 +126,9 @@ def main() -> None:
             args.eval_mode,
         ),
     }
+    diagnostics = _run_diagnostics(model, tokenizer, args)
+    if diagnostics:
+        metrics["diagnostics"] = diagnostics
     print(json.dumps(metrics, ensure_ascii=False, indent=2), flush=True)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -167,8 +176,8 @@ def evaluate(
     import torch
 
     model.eval()
-    if eval_mode == "binary_choice" and method in {"direct", "soft", "latent"} and _is_binary_answer_set(examples):
-        result = evaluate_binary_choice(model, tokenizer, examples, method, k, device)
+    if eval_mode == "binary_choice" and _is_binary_answer_set(examples):
+        result = evaluate_binary_choice(model, tokenizer, examples, method, k, device, max_new_tokens)
         model.train()
         return result
 
@@ -207,6 +216,7 @@ def evaluate_binary_choice(
     method: Method,
     k: int,
     device: str,
+    max_trace_tokens: int,
 ) -> dict:
     import torch
 
@@ -235,6 +245,17 @@ def evaluate_binary_choice(
                     )
                     for choice, ids in candidate_ids.items()
                 }
+            elif method in {"cot", "masked_cot"}:
+                trace_prefix = f"Problem:\n{example.prompt}\nReasoning: "
+                trace_prefix_ids = torch.tensor(tokenizer.encode(trace_prefix), device=device, dtype=torch.long)
+                generated_trace = tokenizer.decode(model.generate_text(trace_prefix_ids, max_new_tokens=max_trace_tokens))
+                generated_trace = generated_trace.split("Answer:", 1)[0].rstrip()
+                answer_prefix = f"{trace_prefix}{generated_trace}\nAnswer: "
+                answer_prefix_ids = torch.tensor(tokenizer.encode(answer_prefix), device=device, dtype=torch.long)
+                scores = {
+                    choice: float(model.candidate_nll(answer_prefix_ids, ids).detach().cpu())
+                    for choice, ids in candidate_ids.items()
+                }
             else:
                 raise ValueError(f"binary_choice eval is not supported for method={method}")
 
@@ -242,13 +263,45 @@ def evaluate_binary_choice(
             ok = verify_answer(example, answer)
             correct += int(ok)
             if len(predictions) < 5:
-                predictions.append({"expected": example.answer, "parsed": answer, "scores": scores, "ok": ok})
+                sample = {"expected": example.answer, "parsed": answer, "scores": scores, "ok": ok}
+                if method in {"cot", "masked_cot"}:
+                    sample["generated_trace"] = generated_trace[:160]
+                predictions.append(sample)
 
     return {"accuracy": correct / max(1, len(examples)), "num_examples": len(examples), "samples": predictions}
 
 
 def _is_binary_answer_set(examples: list[Example]) -> bool:
     return all(example.answer in {"YES", "NO"} for example in examples)
+
+
+def _run_diagnostics(model, tokenizer: CharTokenizer, args) -> dict:
+    if not args.easy_graph_diagnostic_nodes or args.diagnostic_examples <= 0:
+        return {}
+    if args.task != "graph_reachability" or args.difficulty != "easy":
+        raise ValueError("--easy-graph-diagnostic-nodes is only supported for graph_reachability/easy")
+
+    diagnostics = {}
+    for raw_n in args.easy_graph_diagnostic_nodes.split(","):
+        raw_n = raw_n.strip()
+        if not raw_n:
+            continue
+        n = int(raw_n)
+        examples = [
+            generate_easy_graph_reachability_fixed_nodes(4_000_000 + n * 10_000 + i, n=n)
+            for i in range(args.diagnostic_examples)
+        ]
+        diagnostics[f"easy_n{n}"] = evaluate(
+            model,
+            tokenizer,
+            examples,
+            args.method,
+            args.k,
+            args.device,
+            args.max_new_tokens,
+            args.eval_mode,
+        )
+    return diagnostics
 
 
 def extract_answer(text: str) -> str:

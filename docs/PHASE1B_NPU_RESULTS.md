@@ -2,6 +2,8 @@
 
 Date: 2026-06-26
 
+Note: the five-method matrix in this file used mixed evaluation modes: binary-choice scoring for `direct/soft/latent`, and generation parsing for `cot/masked_cot`. It is useful as a runability check. The comparable final-answer protocol is documented in `docs/PHASE1C_EVAL_AND_DIAGNOSTICS.md`.
+
 Environment:
 
 - Wrapper: `scripts/with_conda_npu.sh`
