@@ -82,3 +82,11 @@ NPU smoke checks passed for both tracks:
 - Track B: `direct` and `latent_k2`, 1 seed, 5 training steps.
 
 These smoke results only verify plumbing. They are not evidence for or against the research hypothesis.
+
+For unattended execution of both tracks on one NPU, use:
+
+```bash
+DEVICE=npu:0 scripts/run_phase2_dual_track.sh
+```
+
+This runs Track B first, then Track A, so the two matrices do not contend for the same NPU.
