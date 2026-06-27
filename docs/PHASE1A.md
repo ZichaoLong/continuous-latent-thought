@@ -11,7 +11,7 @@ The goal is not to prove the FDT hypothesis yet. The goal is to verify that the 
 ## Build Smoke Splits
 
 ```bash
-PYTHONPATH=src python3 -m clt.build_dataset \
+PYTHONPATH=src python3 -m fdt.build_dataset \
   --task graph_reachability \
   --preset smoke \
   --out-dir data/phase1a_smoke
@@ -29,7 +29,7 @@ ood_test:  32 examples
 ## Run One Method
 
 ```bash
-PYTHONPATH=src python3 -m clt.train_tiny \
+PYTHONPATH=src python3 -m fdt.train_tiny \
   --task graph_reachability \
   --method latent \
   --data-dir data/phase1a_smoke \
@@ -100,7 +100,7 @@ The tiny decoder can execute on NPU:
 
 ```bash
 ASCEND_RT_VISIBLE_DEVICES=5 PYTHONPATH=src scripts/with_ascend_env.sh \
-  python3 -m clt.train_tiny \
+  python3 -m fdt.train_tiny \
   --task graph_reachability \
   --method direct \
   --data-dir data/phase1a_smoke \

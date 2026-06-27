@@ -5,7 +5,7 @@ Date: 2026-06-26
 Environment:
 
 - Wrapper: `scripts/with_conda_npu.sh`
-- Python: `/home/zlong/anaconda3/envs/clt-npu-py39/bin/python`
+- Python: `/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python`
 - Toolkit path: `/usr/local/Ascend/ascend-toolkit/8.2.RC1`
 - Device: `ASCEND_RT_VISIBLE_DEVICES=5`, `DEVICE=npu:0`
 - Task: `graph_reachability`

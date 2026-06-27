@@ -14,13 +14,13 @@ N_HEADS="${N_HEADS:-2}"
 
 mkdir -p "${OUTPUT_DIR}"
 
-PYTHONPATH="src:${PYTHONPATH:-}" python3 -m clt.build_dataset \
+PYTHONPATH="src:${PYTHONPATH:-}" python3 -m fdt.build_dataset \
   --task "${TASK}" \
   --preset smoke \
   --out-dir "${DATA_DIR}"
 
 for method in direct cot latent; do
-  PYTHONPATH="src:${PYTHONPATH:-}" python3 -m clt.train_tiny \
+  PYTHONPATH="src:${PYTHONPATH:-}" python3 -m fdt.train_tiny \
     --task "${TASK}" \
     --method "${method}" \
     --data-dir "${DATA_DIR}" \

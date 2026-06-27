@@ -1,7 +1,7 @@
-from clt.data import build_split, read_jsonl
-from clt.formats import continuous_item, format_text
-from clt.tasks import generate_easy_graph_reachability_fixed_nodes, generate_example
-from clt.tokenizer import CharTokenizer
+from fdt.data import build_split, read_jsonl
+from fdt.formats import continuous_item, format_text
+from fdt.tasks import generate_easy_graph_reachability_fixed_nodes, generate_example
+from fdt.tokenizer import CharTokenizer
 
 
 def test_build_split_writes_jsonl(tmp_path):

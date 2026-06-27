@@ -1,6 +1,6 @@
 import json
 
-from clt.tasks import generate_example, list_tasks, parse_arithmetic_answer, verify_answer
+from fdt.tasks import generate_example, list_tasks, parse_arithmetic_answer, verify_answer
 
 
 def test_generators_are_deterministic():

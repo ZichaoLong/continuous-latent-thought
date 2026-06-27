@@ -28,7 +28,7 @@ and selects the answer with lower average token NLL. This avoids free-generation
 ## Build Easy Data
 
 ```bash
-PYTHONPATH=src python3 -m clt.build_dataset \
+PYTHONPATH=src python3 -m fdt.build_dataset \
   --task graph_reachability \
   --preset debug \
   --difficulty easy \
@@ -47,7 +47,7 @@ ood_test:  200 examples
 ## Run One Direct Experiment
 
 ```bash
-PYTHONPATH=src python3 -m clt.train_tiny \
+PYTHONPATH=src python3 -m fdt.train_tiny \
   --task graph_reachability \
   --method direct \
   --difficulty easy \

@@ -1,0 +1,107 @@
+# Qwen Integration
+
+本文说明 FDT 当前如何接入 Qwen，以及它和早期 tiny char-level decoder 的关系。
+
+## 当前 Base Model
+
+现在仓库有两条训练路径：
+
+- `fdt.train_tiny`: 随机初始化的 tiny char-level decoder，只用于快速验证数据、loss、evaluation、NPU 环境和 continuous thinking 机制。
+- `fdt.train_qwen`: Hugging Face / Qwen causal LM 路径，默认模型是 `Qwen/Qwen3-0.6B-Base`。
+
+因此，真正的 base model 实验应使用 `fdt.train_qwen`。它加载的是预训练过的 Qwen Base 模型，而不是从零训练的小模型。
+
+## 为什么保留 Tiny Decoder
+
+tiny char-level decoder 不是最终研究对象，它的作用是工程诊断：
+
+- 运行快，能在 CPU 或 NPU 上快速检查五组训练格式是否可执行。
+- 模型小，容易定位 loss mask、数据格式、evaluation parsing 的错误。
+- 不依赖外部模型下载，适合做 CI / smoke test。
+- 可以先排除任务生成和实验框架的问题，再把同一套格式迁移到 Qwen。
+
+tiny 结果只能说明实验管线是否有效，不能证明 Qwen 或真实 LLM 上的结论。
+
+## 五组方法
+
+所有方法使用同一批题和同样的最终答案标签，区别只在中间计算载体。
+
+| 方法 | 格式 | Loss |
+| --- | --- | --- |
+| `direct` | `prompt -> answer` | answer CE |
+| `cot` | `prompt -> oracle trace -> answer` | trace CE + answer CE |
+| `masked_cot` | `prompt -> oracle trace -> answer` | only answer CE, trace masked |
+| `soft` | `prompt -> K soft-token steps -> answer` | only answer CE |
+| `latent` | `prompt -> K latent steps -> answer` | only answer CE |
+
+`soft` 通过 `softmax(logits) @ embedding_matrix` 得到下一步连续输入；`latent` 直接把最后一层 hidden state 经过 norm/projection 后反馈为下一步 input embedding。
+
+## 常用缩写
+
+- FDT: Fuzzy Deep Thinker，本项目名。
+- SFT: Supervised Fine-Tuning，监督微调。
+- CE: Cross Entropy，交叉熵 loss。
+- CoT: Chain-of-Thought，链式思考。
+- HF: Hugging Face。
+- NPU: Neural Processing Unit，这里主要指 Ascend 910。
+- ID: in-distribution，同分布测试。
+- OOD: out-of-distribution，分布外测试。
+- K: continuous thinking 的固定步数。
+
+## 最小运行命令
+
+只检查 CLI 和依赖：
+
+```bash
+TORCH_DEVICE_BACKEND_AUTOLOAD=0 PYTHONPATH=src /home/zlong/anaconda3/envs/fdt-npu-py39/bin/python -m fdt.train_qwen --help
+```
+
+在 Ascend NPU 上跑一个 direct Qwen smoke：
+
+```bash
+PYTHONPATH=src scripts/with_conda_npu.sh python -m fdt.train_qwen \
+  --model-name-or-path Qwen/Qwen3-0.6B-Base \
+  --build-data \
+  --task graph_reachability \
+  --difficulty easy_ladder \
+  --method direct \
+  --device npu:0 \
+  --dtype bfloat16 \
+  --steps 1 \
+  --eval-examples 2 \
+  --output outputs/qwen_smoke/direct_seed0.json
+```
+
+运行五组方法的 smoke matrix：
+
+```bash
+scripts/with_conda_npu.sh scripts/run_qwen_smoke.sh
+```
+
+如果 Hugging Face 直连不可用，但本机 `127.0.0.1:7890` 代理可用：
+
+```bash
+HTTP_PROXY=http://127.0.0.1:7890 \
+HTTPS_PROXY=http://127.0.0.1:7890 \
+ALL_PROXY=socks5h://127.0.0.1:7891 \
+NO_PROXY=localhost,127.0.0.1 \
+scripts/with_conda_npu.sh scripts/run_qwen_smoke.sh
+```
+
+可通过环境变量调整：
+
+```bash
+MODEL_NAME_OR_PATH=/path/to/local/qwen \
+CONFIGS="direct:- cot:- soft:4 latent:4" \
+STEPS=20 \
+EVAL_EXAMPLES=16 \
+scripts/with_conda_npu.sh scripts/run_qwen_smoke.sh
+```
+
+## 当前限制
+
+- `fdt.train_qwen` 当前默认全参数微调；后续更适合接 LoRA / QLoRA，降低显存和训练成本。
+- Ascend NPU 上不建议用 full-parameter FP16 AdamW 训练 Qwen，最小 smoke 中观察到它可能导致候选打分变成 `NaN`；当前 runner 默认使用 `bfloat16`。
+- `soft` 方法会计算全 vocabulary 的 soft embedding，显存和速度压力比 `latent` 更大。
+- `masked_cot` 存在 train/test mismatch，只应作为诊断 baseline。
+- Qwen smoke 的小步数结果只能验证代码路径，不能作为研究结论。

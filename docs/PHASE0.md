@@ -17,7 +17,7 @@ PYTHONPATH=src pytest -q
 ## Generate Debug Data
 
 ```bash
-PYTHONPATH=src python3 -m clt.generate_data \
+PYTHONPATH=src python3 -m fdt.generate_data \
   --task all \
   --split train \
   --num-examples 8 \

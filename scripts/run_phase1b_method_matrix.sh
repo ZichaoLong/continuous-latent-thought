@@ -19,7 +19,7 @@ MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-96}"
 
 mkdir -p "${OUTPUT_DIR}"
 
-PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.build_dataset \
+PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.build_dataset \
   --task "${TASK}" \
   --preset debug \
   --difficulty "${DIFFICULTY}" \
@@ -36,7 +36,7 @@ for method in ${METHODS}; do
   eval_mode="$(eval_mode_for_method "${method}")"
   for steps in ${STEPS_LIST}; do
     echo "Running matrix point: method=${method} steps=${steps} eval_mode=${eval_mode}"
-    PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.train_tiny \
+    PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.train_tiny \
       --task "${TASK}" \
       --method "${method}" \
       --difficulty "${DIFFICULTY}" \

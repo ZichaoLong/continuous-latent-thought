@@ -22,13 +22,13 @@ PYTHON="${PYTHON:-python3}"
 
 mkdir -p "${OUTPUT_DIR}"
 
-PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.build_dataset \
+PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.build_dataset \
   --task "${TASK}" \
   --preset debug \
   --difficulty "${DIFFICULTY}" \
   --out-dir "${DATA_DIR}"
 
-PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.train_tiny \
+PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.train_tiny \
   --task "${TASK}" \
   --method "${METHOD}" \
   --difficulty "${DIFFICULTY}" \

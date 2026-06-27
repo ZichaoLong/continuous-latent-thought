@@ -17,7 +17,7 @@
 |---|---|
 | 机器 | 本机 Ascend 910 NPU |
 | 执行封装 | `scripts/with_conda_npu.sh` |
-| Python | `/home/zlong/anaconda3/envs/clt-npu-py39/bin/python` |
+| Python | `/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python` |
 | CANN | `/usr/local/Ascend/ascend-toolkit/8.2.RC1` |
 | PyTorch | `torch 2.7.1`, `torch_npu 2.7.1.post2` |
 | 设备 | `DEVICE=npu:0`, `ASCEND_RT_VISIBLE_DEVICES=5` |

@@ -7,7 +7,7 @@ This note records the local Ascend 910 setup used for phase 1 experiments.
 The usable user-level environment is:
 
 ```bash
-/home/zlong/anaconda3/envs/clt-npu-py39/bin/python
+/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python
 ```
 
 It was created under the current user's `~/anaconda3` with Python 3.9, because the conda base environment is Python 3.13 and the locally downloadable `torch-npu` wheels tested here were cp39 aarch64 wheels.
@@ -63,7 +63,7 @@ scripts/with_conda_npu.sh
 This wrapper sets:
 
 ```text
-PYTHON=/home/zlong/anaconda3/envs/clt-npu-py39/bin/python
+PYTHON=/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python
 PYTHONNOUSERSITE=1
 ASCEND_RT_VISIBLE_DEVICES=5
 ```
@@ -78,7 +78,7 @@ NPU smoke:
 ASCEND_RT_VISIBLE_DEVICES=5 \
 PYTHONNOUSERSITE=1 \
 scripts/with_ascend_env.sh \
-/home/zlong/anaconda3/envs/clt-npu-py39/bin/python \
+/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python \
 scripts/npu_smoke.py --device npu:0 --size 128
 ```
 
@@ -87,7 +87,7 @@ Short phase 1b run:
 ```bash
 ASCEND_RT_VISIBLE_DEVICES=5 \
 PYTHONNOUSERSITE=1 \
-PYTHON=/home/zlong/anaconda3/envs/clt-npu-py39/bin/python \
+PYTHON=/home/zlong/anaconda3/envs/fdt-npu-py39/bin/python \
 DEVICE=npu:0 \
 DATA_DIR=data/phase1b_easy_conda_npu \
 OUTPUT_DIR=outputs/phase1b_direct_curve_conda_npu_smoke \

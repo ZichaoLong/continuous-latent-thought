@@ -25,7 +25,7 @@ CONFIGS="${CONFIGS:-direct:- cot:- soft:0 soft:8 soft:16 latent:0 latent:8 laten
 
 mkdir -p "${OUTPUT_DIR}" "${CHECKPOINT_DIR}"
 
-PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.build_dataset \
+PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.build_dataset \
   --task "${TASK}" \
   --preset debug \
   --difficulty "${DIFFICULTY}" \
@@ -45,7 +45,7 @@ for seed in ${SEEDS}; do
     output_path="${OUTPUT_DIR}/${suffix}_seed${seed}.json"
     checkpoint_path="${CHECKPOINT_DIR}/${suffix}_seed${seed}.pt"
     echo "Running ladder point: config=${suffix} seed=${seed} steps=${STEPS}"
-    PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m clt.train_tiny \
+    PYTHONUNBUFFERED=1 PYTHONPATH="src:${PYTHONPATH:-}" "${PYTHON}" -m fdt.train_tiny \
       --task "${TASK}" \
       --method "${method}" \
       --difficulty "${DIFFICULTY}" \
